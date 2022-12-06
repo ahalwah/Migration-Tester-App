@@ -94,9 +94,9 @@ void loop() {
         bluetooth.write('y'); // request user to insert sd card first
         Serial.println("sd not in");
       }else{
-        Serial.println("sd in");
         Cough = true;
         record = true;
+        Serial.println("sd in");
       }
     }else if(c == 'h'){ // generate cough but don't record data
       Cough = true;
@@ -118,6 +118,10 @@ void loop() {
   if(Cough == true){
     Cough = false;
     if(record){
+      if(SD.exists("Migration Test.txt")){
+        // delete file to create a new one
+        Sd.remove("Migration Test.txt");
+      }
       // open file
       myFile = SD.open("Migration Test.txt", FILE_WRITE);
       myFile.println("Period, Pressure In, Pressure Out");

@@ -139,10 +139,12 @@ async function draw() {
   line(width*0.63, width*0.42, width*0.695, width*0.42)
   text('min', width*0.645, width*0.44)
   if(isNumeric(coughsInput) && isNumeric(durationInput) && isNumeric(restInput)){
-    let cough = parseInt(coughsInput)
     let duration = parseInt(durationInput)
     let rest = parseInt(restInput)
-    text(round((duration+rest)/1000*cough/60, 2), width*0.56, width*0.42)
+    let totalTime = (duration+rest)/1000
+    let rate = round(60/totalTime, 2)
+    console.log(rate)
+    text(rate.toString(), width*0.56, width*0.42)
   }
   
   text('Solenoid', width*0.04, width*0.22)
@@ -339,6 +341,7 @@ async function beginCoughs() {
       }else{
         await sendData('h')
       }
+      alert('Test Started')
     }else{
       alert('input integer values for cough parameters')
     }

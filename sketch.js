@@ -11,6 +11,8 @@ let coughButton;
 let solenoidOn;
 let solenoidOff;
 let beginBtn; // begin coughs
+let endBtn;
+let pauseBtn; let pauseState = false;
 
 // checkbox
 let saveData;
@@ -26,6 +28,7 @@ let pressTank = '';
 let pressIn = '';
 let pressOut = '';
 let period = '';
+let cycle= '';
 
 // input variables
 let coughsInput;
@@ -46,6 +49,9 @@ async function setup() {
     connectButton.style('border-radius', `${width*0.005}px`);
 
     solenoidOn = createButton("On");
+    solenoidOn.style('background-color', 'green');
+    solenoidOn.style('color', 'white');
+    solenoidOn.style('border-color', 'green');
     solenoidOn.mousePressed(turnSolenoidOn);
     solenoidOn.position(width*0.15, width*0.19);
     solenoidOn.size(width*0.06, width*0.04);
@@ -53,6 +59,9 @@ async function setup() {
     solenoidOn.style('border-radius', `${width*0.005}px`);
 
     solenoidOff = createButton("Off");
+    solenoidOff.style('background-color', 'red');
+    solenoidOff.style('color', 'white');
+    solenoidOff.style('border-color', 'red');
     solenoidOff.mousePressed(turnSolenoidOff);
     solenoidOff.position(width*0.23, width*0.19);
     solenoidOff.size(width*0.06, width*0.04);
@@ -60,11 +69,34 @@ async function setup() {
     solenoidOff.style('border-radius', `${width*0.005}px`);
 
     beginBtn = createButton("Begin");
+    beginBtn.style('background-color', 'green');
+    beginBtn.style('color', 'white');
+    beginBtn.style('border-color', 'green');
     beginBtn.mousePressed(beginCoughs);
-    beginBtn.position(width*0.43, width*0.34);
-    beginBtn.size(width*0.06, width*0.04);
+    beginBtn.position(width*0.405, width*0.34);
+    beginBtn.size(width*0.06, width*0.035);
     beginBtn.style('font-size', `${width*0.013}px`);
     beginBtn.style('border-radius', `${width*0.005}px`);
+
+    endBtn = createButton("End");
+    endBtn.style('background-color', 'red');
+    endBtn.style('color', 'white');
+    endBtn.style('border-color', 'red');
+    endBtn.mousePressed(endCoughs);
+    endBtn.position(width*0.475, width*0.34);
+    endBtn.size(width*0.06, width*0.035);
+    endBtn.style('font-size', `${width*0.013}px`);
+    endBtn.style('border-radius', `${width*0.005}px`);
+
+    pauseBtn = createButton("Pause");
+    pauseBtn.style('background-color', 'teal');
+    pauseBtn.style('color', 'white');
+    pauseBtn.style('border-color', 'teal');
+    pauseBtn.mousePressed(pauseCoughs);
+    pauseBtn.position(width*0.545, width*0.34);
+    pauseBtn.size(width*0.07, width*0.035);
+    pauseBtn.style('font-size', `${width*0.013}px`);
+    pauseBtn.style('border-radius', `${width*0.005}px`);
 
     inp1 = createInput('');
     inp1.position(width*0.21, width*0.348);
@@ -88,7 +120,7 @@ async function setup() {
     inp3.input(inputEvent3);
 
     saveData = createCheckbox('save data', false);
-    saveData.position(width*0.53, width*0.35);
+    saveData.position(width*0.63, width*0.345);
     box = saveData.elt.getElementsByTagName('input')[0];
     label = saveData.elt.getElementsByTagName('label')[0];
     label.style.fontSize = `${width*0.018}px`
@@ -111,6 +143,7 @@ function inputEvent3() {
 }
 
 async function draw() {
+  console.log(width, height)
   background(220)
   fill('black')
   textSize(width*0.04)
@@ -134,17 +167,23 @@ async function draw() {
   text('ms', width*0.29, width*0.40)
   text('Rest Time', width*0.04, width*0.44)
   text('ms', width*0.29, width*0.44)
-  text('Cough Rate', width*0.4, width*0.42)
-  text('coughs', width*0.63, width*0.41)
-  line(width*0.63, width*0.42, width*0.695, width*0.42)
-  text('min', width*0.645, width*0.44)
+  text('Cough Cycle', width*0.4, width*0.40)
+  if(cycle[0] === 'u' && cycle.length > 1){
+    cycle = cycle.substring(9)
+  }
+  text(cycle, width*0.56, width*0.40)
+  text('coughs', width*0.63, width*0.40)
+  text('Cough Rate', width*0.4, width*0.44)
+  text('coughs', width*0.63, width*0.43)
+  line(width*0.63, width*0.44, width*0.695, width*0.44)
+  text('min', width*0.645, width*0.46)
   if(isNumeric(coughsInput) && isNumeric(durationInput) && isNumeric(restInput)){
     let duration = parseInt(durationInput)
     let rest = parseInt(restInput)
     let totalTime = (duration+rest)/1000
     let rate = round(60/totalTime, 2)
     console.log(rate)
-    text(rate.toString(), width*0.56, width*0.42)
+    text(rate.toString(), width*0.56, width*0.44)
   }
   
   text('Solenoid', width*0.04, width*0.22)
@@ -217,6 +256,9 @@ function handleNotifications(data) {
   }else if(String.fromCharCode(data) === 'y'){// ask user to insert sd card
     if(saveData.checked())
       alert('Can not read SD card!')
+  }else if(String.fromCharCode(data) === 'z'){// cough cycle data value
+    cycle = reading;
+    reading = ''
   }else{
     let incoming = String.fromCharCode(data);
     if(incoming === '.' || !isNaN(incoming))
@@ -274,7 +316,7 @@ function bleIndicator() {
 }
 
 function windowResized() {
-  resizeCanvas(windowWidth, windowHeight);
+  resizeCanvas(windowWidth, windowWidth*0.48);
 
   connectButton.position(width*0.865, width*0.15);
   connectButton.size(width*0.08, width*0.04);
@@ -291,10 +333,20 @@ function windowResized() {
   solenoidOff.style('font-size', `${width*0.013}px`);
   solenoidOff.style('border-radius', `${width*0.005}px`);
 
-  beginBtn.position(width*0.43, width*0.34);
-  beginBtn.size(width*0.06, width*0.04);
+  beginBtn.position(width*0.405, width*0.34);
+  beginBtn.size(width*0.06, width*0.035);
   beginBtn.style('font-size', `${width*0.013}px`);
   beginBtn.style('border-radius', `${width*0.005}px`);
+
+  endBtn.position(width*0.475, width*0.34);
+  endBtn.size(width*0.06, width*0.035);
+  endBtn.style('font-size', `${width*0.013}px`);
+  endBtn.style('border-radius', `${width*0.005}px`);
+
+  pauseBtn.position(width*0.545, width*0.34);
+  pauseBtn.size(width*0.07, width*0.035);
+  pauseBtn.style('font-size', `${width*0.013}px`);
+  pauseBtn.style('border-radius', `${width*0.005}px`);
 
   inp1.position(width*0.21, width*0.348);
   inp1.size(width*0.07, width*0.02);
@@ -311,7 +363,7 @@ function windowResized() {
   inp3.style('font-size', `${width*0.013}px`);
   inp3.style('border-radius', `${width*0.005}px`);
 
-  saveData.position(width*0.53, width*0.35);
+  saveData.position(width*0.63, width*0.345);
   label.style.fontSize = `${width*0.018}px`
   label.style.marginLeft = `${width*0.01}px`
   box.style.transform = `scale(${width*0.0015})`;
@@ -341,10 +393,22 @@ async function beginCoughs() {
       }else{
         await sendData('h')
       }
-      alert('Test Started')
+      // alert('Test Started')
     }else{
       alert('input integer values for cough parameters')
     }
+  }
+}
+
+async function endCoughs() {
+  await sendData('e');
+} 
+
+async function pauseCoughs() {
+  if(isConnected){
+    pauseState = !pauseState;
+    !pauseState ? pauseBtn.html('Pause') : pauseBtn.html('Continue');
+    await sendData('p');
   }
 }
 

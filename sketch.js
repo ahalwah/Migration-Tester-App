@@ -1,419 +1,241 @@
-const serviceUuid = "0000ffe0-0000-1000-8000-00805f9b34fb";
-let blueToothCharacteristic;
-let receivedValue = "";
+// https://dpk3n3gg92jwt.cloudfront.net/domains/humphrey/pdf/320%20&%20420.pdf
+#include <SPI.h>
+#include "SdFat.h"
+#include "sdios.h"
+#include <SoftwareSerial.h>
+// https://create.arduino.cc/projecthub/electropeak/sd-card-module-with-arduino-how-to-read-write-data-37f390
+SdExFat SD;
+ExFile myFile;
 
-let blueTooth;
-let isConnected = false;
+//UART TO HM10 Module
+const int bluRX_ardTXpin = 6;
+const int bluTX_ardRXpin = 5;
+//relay
+int relay = 3;
+boolean relayOpen = false;
+// pressure sensor (5psi)
+int sensorIn = A0;
+int sensorOut = A1;
+// pressure sensor tank
+int sensorTank = A2;
+// ble
+int beginTime = 0;
+boolean Cough = false;
+boolean record = false;
+// ble values in
+String reading = "";
+int coughs;
+int period;
+int rest;
+// cycle counter
+int counter = 0;
 
-// buttons
-let connectButton;
-let coughButton;
-let solenoidOn;
-let solenoidOff;
-let beginBtn; // begin coughs
-let endBtn;
-let pauseBtn; let pauseState = false;
+SoftwareSerial bluetooth(bluTX_ardRXpin, bluRX_ardTXpin);
 
-// checkbox
-let saveData;
-let box;
-let label;
-
-// inputs
-let inp1, inp2, inp3;
-
-// readings
-let reading;
-let pressTank = '';
-let pressIn = '';
-let pressOut = '';
-let period = '';
-let cycle= '';
-
-// input variables
-let coughsInput;
-let durationInput;
-let restInput;
-
-async function setup() {
-    createCanvas(windowWidth, windowWidth*0.47);
-    // Create a p5ble class
-    console.log("setting up");
-    blueTooth = new p5ble();
-
-    connectButton = createButton("Connect");
-    connectButton.mousePressed(connectToBle);
-    connectButton.position(width*0.865, width*0.15);
-    connectButton.size(width*0.08, width*0.04);
-    connectButton.style('font-size', `${width*0.013}px`);
-    connectButton.style('border-radius', `${width*0.005}px`);
-
-    solenoidOn = createButton("On");
-    solenoidOn.style('background-color', 'green');
-    solenoidOn.style('color', 'white');
-    solenoidOn.style('border-color', 'green');
-    solenoidOn.mousePressed(turnSolenoidOn);
-    solenoidOn.position(width*0.15, width*0.19);
-    solenoidOn.size(width*0.06, width*0.04);
-    solenoidOn.style('font-size', `${width*0.013}px`);
-    solenoidOn.style('border-radius', `${width*0.005}px`);
-
-    solenoidOff = createButton("Off");
-    solenoidOff.style('background-color', 'red');
-    solenoidOff.style('color', 'white');
-    solenoidOff.style('border-color', 'red');
-    solenoidOff.mousePressed(turnSolenoidOff);
-    solenoidOff.position(width*0.23, width*0.19);
-    solenoidOff.size(width*0.06, width*0.04);
-    solenoidOff.style('font-size', `${width*0.013}px`);
-    solenoidOff.style('border-radius', `${width*0.005}px`);
-
-    beginBtn = createButton("Begin");
-    beginBtn.style('background-color', 'green');
-    beginBtn.style('color', 'white');
-    beginBtn.style('border-color', 'green');
-    beginBtn.mousePressed(beginCoughs);
-    beginBtn.position(width*0.405, width*0.34);
-    beginBtn.size(width*0.06, width*0.035);
-    beginBtn.style('font-size', `${width*0.013}px`);
-    beginBtn.style('border-radius', `${width*0.005}px`);
-
-    endBtn = createButton("End");
-    endBtn.style('background-color', 'red');
-    endBtn.style('color', 'white');
-    endBtn.style('border-color', 'red');
-    endBtn.mousePressed(endCoughs);
-    endBtn.position(width*0.475, width*0.34);
-    endBtn.size(width*0.06, width*0.035);
-    endBtn.style('font-size', `${width*0.013}px`);
-    endBtn.style('border-radius', `${width*0.005}px`);
-
-    pauseBtn = createButton("Pause");
-    pauseBtn.style('background-color', 'teal');
-    pauseBtn.style('color', 'white');
-    pauseBtn.style('border-color', 'teal');
-    pauseBtn.mousePressed(pauseCoughs);
-    pauseBtn.position(width*0.545, width*0.34);
-    pauseBtn.size(width*0.07, width*0.035);
-    pauseBtn.style('font-size', `${width*0.013}px`);
-    pauseBtn.style('border-radius', `${width*0.005}px`);
-
-    inp1 = createInput('');
-    inp1.position(width*0.21, width*0.348);
-    inp1.size(width*0.07, width*0.02);
-    inp1.style('font-size', `${width*0.013}px`);
-    inp1.style('border-radius', `${width*0.005}px`);
-    inp1.input(inputEvent);
-
-    inp2 = createInput('');
-    inp2.position(width*0.21, width*0.387);
-    inp2.size(width*0.07, width*0.02);
-    inp2.style('font-size', `${width*0.013}px`);
-    inp2.style('border-radius', `${width*0.005}px`);
-    inp2.input(inputEvent2);
-
-    inp3 = createInput('');
-    inp3.position(width*0.21, width*0.427);
-    inp3.size(width*0.07, width*0.02);
-    inp3.style('font-size', `${width*0.013}px`);
-    inp3.style('border-radius', `${width*0.005}px`);
-    inp3.input(inputEvent3);
-
-    saveData = createCheckbox('save data', false);
-    saveData.position(width*0.63, width*0.345);
-    box = saveData.elt.getElementsByTagName('input')[0];
-    label = saveData.elt.getElementsByTagName('label')[0];
-    label.style.fontSize = `${width*0.018}px`
-    label.style.marginLeft = `${width*0.01}px`
-    box.style.transform = `scale(${width*0.0015})`;
-    // saveData.changed(myCheckedEvent);
+void setup() {
+  pinMode(sensorIn,INPUT);
+  pinMode(sensorOut,INPUT);
+  pinMode(sensorTank,INPUT);
+  pinMode(relay, OUTPUT);
+  bluetooth.begin(9600);
+  Serial.begin(9600);
 }
 
-function inputEvent() {
-  coughsInput = this.value()
-  console.log(this.value())
-}
-function inputEvent2() {
-  durationInput = this.value()
-  console.log(this.value())
-}
-function inputEvent3() {
-  restInput = this.value()
-  console.log(this.value())
-}
-
-async function draw() {
-  console.log(width, height)
-  background(220)
-  fill('black')
-  textSize(width*0.04)
-  text('Migration Tester Controls', width*0.04, width*0.07)
-  strokeWeight(5)
-  line(width*0.04, width*0.1, width*0.7, width*0.1) 
-  textSize(width*0.025)
-  text('Manual Controls', width*0.04, width*0.15)
-  text('Automatic Controls', width*0.04, width*0.3)
-  text('System Pressure', width*0.4, width*0.15)
-  strokeWeight(3)
-  line(width*0.365, width*0.13, width*0.365, width*0.30) // vertical line
-  line(width*0.04, width*0.17, width*0.33, width*0.17) // manual controls
-  line(width*0.40, width*0.17, width*0.68, width*0.17) // system pressure
-  line(width*0.04, width*0.32, width*0.68, width*0.32) // automatic controls
-  textSize(width*0.02)
-  fill('black')
-  text('Cough Number', width*0.04, width*0.36)
-  text('coughs', width*0.29, width*0.36)
-  text('Cough Duration', width*0.04, width*0.40)
-  text('ms', width*0.29, width*0.40)
-  text('Rest Time', width*0.04, width*0.44)
-  text('ms', width*0.29, width*0.44)
-  text('Cough Cycle', width*0.4, width*0.40)
-  if(cycle[0] === 'u' && cycle.length > 1){
-    cycle = cycle.substring(9)
-  }
-  text(cycle, width*0.56, width*0.40)
-  text('coughs', width*0.63, width*0.40)
-  text('Cough Rate', width*0.4, width*0.44)
-  text('coughs', width*0.63, width*0.43)
-  line(width*0.63, width*0.44, width*0.695, width*0.44)
-  text('min', width*0.645, width*0.46)
-  if(isNumeric(coughsInput) && isNumeric(durationInput) && isNumeric(restInput)){
-    let duration = parseInt(durationInput)
-    let rest = parseInt(restInput)
-    let totalTime = (duration+rest)/1000
-    let rate = round(60/totalTime, 2)
-    console.log(rate)
-    text(rate.toString(), width*0.56, width*0.44)
-  }
-  
-  text('Solenoid', width*0.04, width*0.22)
-  text('Tank Pressure', width*0.4, width*0.21)
-  if(pressTank[0] === 'u' && pressTank.length > 1){
-    pressTank = pressTank.substring(9)
-  }
-  text(pressTank, width*0.56, width*0.21)
-  text('psi', width*0.65, width*0.21)
-  text('Pressure In', width*0.4, width*0.25)
-  if(pressIn[0] === 'u' && pressIn.length > 1){
-    pressIn = pressIn.substring(9)
-  }
-  text(pressIn, width*0.56, width*0.25)
-  text('psi', width*0.65, width*0.25)
-  text('Pressure Out', width*0.4, width*0.29)
-  if(pressOut[0] === 'u' && pressOut.length > 1){
-    pressOut = pressOut.substring(9)
-  }
-  text(pressOut, width*0.56, width*0.29)
-  text('psi', width*0.65, width*0.29)
-
-
-  bleIndicator();
-}
-
-function connectToBle() {
-    // Connect to a device by passing the service UUID
-    blueTooth.connect(serviceUuid, gotCharacteristics);
-}
-
-// A function that will be called once got characteristics
-function gotCharacteristics(error, characteristics) {
-  if (error) {
-      console.log("error: ", error);
-  }
-  blueToothCharacteristic = characteristics[0];
-
-  blueTooth.startNotifications(blueToothCharacteristic, handleNotifications);
-  
-  isConnected = blueTooth.isConnected();
-  // Add a event handler when the device is disconnected
-  blueTooth.onDisconnected(onDisconnected);
-}
-
-// A function that will be called once got characteristics
-function handleNotifications(data) {
-  if(String.fromCharCode(data) === 't'){ // tank pressure indicator
-    pressTank = reading;
-    reading = ''
-  }else if(String.fromCharCode(data) === 'i'){// in pressure indicator
-    pressIn = reading;
-    reading = ''
-  }else if(String.fromCharCode(data) === 'o'){// out pressure indicator
-    pressOut = reading;
-    reading = ''
-  }else if(String.fromCharCode(data) === 'p'){// period indicator
-    period = reading;
-    reading = ''
-  }else if(String.fromCharCode(data) === 'j'){// period data value
-    newRow = table.addRow();
-    newRow.setNum('Time', parseInt(reading));
-    reading = ''
-  }else if(String.fromCharCode(data) === 'k'){// pressure in data value
-    newRow.setNum('Pressure In', parseFloat(reading));
-    reading = ''
-  }else if(String.fromCharCode(data) === 'l'){// pressure out data value
-    newRow.setNum('Pressure Out', parseFloat(reading));
-    reading = ''
-  }else if(String.fromCharCode(data) === 'y'){// ask user to insert sd card
-    if(saveData.checked())
-      alert('Can not read SD card!')
-  }else if(String.fromCharCode(data) === 'z'){// cough cycle data value
-    cycle = reading;
-    reading = ''
-  }else{
-    let incoming = String.fromCharCode(data);
-    if(incoming === '.' || !isNaN(incoming))
-      reading += String.fromCharCode(data);
-  }
-  // console.log('data: ', String.fromCharCode(data));
-}
-
-function onDisconnected() {
-  console.log("Device got disconnected.");
-  isConnected = false;
-}
-
-function sendData(command) {
-  const inputValue = command;
-  if (!("TextEncoder" in window)) {
-    console.log("Sorry, this browser does not support TextEncoder...");
-  }
-  var enc = new TextEncoder(); // always utf-8
-  
-  return new Promise(resolve => {
-    blueToothCharacteristic.writeValue(enc.encode(inputValue));
-    setTimeout(() => {
-      resolve('resolved');
-    }, 100);
-  })
-}
-
-function receiveData() {
-  if(isConnected)
-    return new Promise(resolve => {
-      const val = blueTooth.read(blueToothCharacteristic);
-      setTimeout(() => {
-        resolve(val);
-      }, 100);
-    })
-}
-
-async function turnSolenoidOn() {
-  if(isConnected) await sendData('q');
-}
-
-async function turnSolenoidOff() {
-  if(isConnected) await sendData('w');
-}
-
-function bleIndicator() {
-  if (isConnected) {
-    fill(0, 255, 0);
-  } else {
-    fill(255, 0, 0);
-  }
-  strokeWeight(1)
-  circle(width*0.9, width*0.08, 0.1*width);
-}
-
-function windowResized() {
-  resizeCanvas(windowWidth, windowWidth*0.48);
-
-  connectButton.position(width*0.865, width*0.15);
-  connectButton.size(width*0.08, width*0.04);
-  connectButton.style('font-size', `${width*0.013}px`);
-  connectButton.style('border-radius', `${width*0.005}px`);
-
-  solenoidOn.position(width*0.15, width*0.19);
-  solenoidOn.size(width*0.06, width*0.04);
-  solenoidOn.style('font-size', `${width*0.013}px`);
-  solenoidOn.style('border-radius', `${width*0.005}px`);
-
-  solenoidOff.position(width*0.23, width*0.19);
-  solenoidOff.size(width*0.06, width*0.04);
-  solenoidOff.style('font-size', `${width*0.013}px`);
-  solenoidOff.style('border-radius', `${width*0.005}px`);
-
-  beginBtn.position(width*0.405, width*0.34);
-  beginBtn.size(width*0.06, width*0.035);
-  beginBtn.style('font-size', `${width*0.013}px`);
-  beginBtn.style('border-radius', `${width*0.005}px`);
-
-  endBtn.position(width*0.475, width*0.34);
-  endBtn.size(width*0.06, width*0.035);
-  endBtn.style('font-size', `${width*0.013}px`);
-  endBtn.style('border-radius', `${width*0.005}px`);
-
-  pauseBtn.position(width*0.545, width*0.34);
-  pauseBtn.size(width*0.07, width*0.035);
-  pauseBtn.style('font-size', `${width*0.013}px`);
-  pauseBtn.style('border-radius', `${width*0.005}px`);
-
-  inp1.position(width*0.21, width*0.348);
-  inp1.size(width*0.07, width*0.02);
-  inp1.style('font-size', `${width*0.013}px`);
-  inp1.style('border-radius', `${width*0.005}px`);
-
-  inp2.position(width*0.21, width*0.387);
-  inp2.size(width*0.07, width*0.02);
-  inp2.style('font-size', `${width*0.013}px`);
-  inp2.style('border-radius', `${width*0.005}px`);
-
-  inp3.position(width*0.21, width*0.427);
-  inp3.size(width*0.07, width*0.02);
-  inp3.style('font-size', `${width*0.013}px`);
-  inp3.style('border-radius', `${width*0.005}px`);
-
-  saveData.position(width*0.63, width*0.345);
-  label.style.fontSize = `${width*0.018}px`
-  label.style.marginLeft = `${width*0.01}px`
-  box.style.transform = `scale(${width*0.0015})`;
-}
-
-async function beginCoughs() {
-  if(isConnected){
-    // check all inputs as strings will be whole numbers
-    if(!isNaN(coughsInput) && !isNaN(durationInput) && !isNaN(restInput)){
-      // send number of coughs
-      for(let i = 0; i < coughsInput.length; i++){
-        await sendData(coughsInput[i])
-      }
-      await sendData('a')
-      // send duration of cough
-      for(let i = 0; i < durationInput.length; i++){
-        await sendData(durationInput[i])
-      }
-      await sendData('s')
-      // send rest time betweem coughs
-      for(let i = 0; i < restInput.length; i++){
-        await sendData(restInput[i])
-      }
-      await sendData('d')
-      if (saveData.checked()){
-        await sendData('c')
-      }else{
-        await sendData('h')
-      }
-      // alert('Test Started')
+void loop() {
+  // pressure in
+  int valIn = analogRead(sensorIn);
+  double output = float(valIn)/1023.0;
+  double pressureIn = (output*30/4)-0.5;
+  // pressure out
+  int valOut = analogRead(sensorOut);
+  output = float(valOut)/1023.0;
+  double pressureOut = (output*30/4)-0.5;
+  // pressure @ tank
+  int analogReading = analogRead(sensorTank);
+  int lowerbound = 0.1*1023; // 0 psi
+  int middlebound = 1023/2; // 15 psi
+  int upperbound = 0.9*1023; // 30 psi
+  // linear interpolation
+  double pressureTank;
+  if(analogReading <= middlebound){
+    if(analogReading < lowerbound){
+      pressureTank = 0;
     }else{
-      alert('input integer values for cough parameters')
+     double y1 = 0.0;
+     double y2 = 15.0;
+     double x1 = double(lowerbound);
+     double x2 = double(middlebound);
+     double x = double(analogReading);
+     pressureTank = y1+(((x-x1)/(x2-x1))*(y2-y1)); 
+    }
+  }else{
+    if(analogReading > upperbound){
+      pressureTank = 30;
+    }else{
+      double y1 = 15.0;
+      double y2 = 30.0;
+      double x1 = double(middlebound);
+      double x2 = double(upperbound);
+      double x = double(analogReading);
+      pressureTank = y1+(((x-x1)/(x2-x1))*(y2-y1));
     }
   }
-}
 
-async function endCoughs() {
-  await sendData('e');
-} 
-
-async function pauseCoughs() {
-  if(isConnected){
-    pauseState = !pauseState;
-    !pauseState ? pauseBtn.html('Pause') : pauseBtn.html('Continue');
-    await sendData('p');
+  if(bluetooth.available()>0){ // receiving data
+    //led indicator for bluetooth connected
+    char c = bluetooth.read();
+    if(c == 'q'){ // turn solenoid on
+      digitalWrite(relay, HIGH);
+      relayOpen = true;
+    }else if(c == 'w'){ // turn solenoid off
+      digitalWrite(relay, LOW);
+      relayOpen = false;
+    }else if(c == 'c'){ // generate cough and record data
+      // check if SD card is inserted
+      if (!SD.begin(10)) {
+        bluetooth.write('y'); // request user to insert sd card first
+        Serial.println("sd not in");
+      }else{
+        Cough = true;
+        record = true;
+        Serial.println("sd in");
+        if(SD.exists("Migration Test.txt")){
+          // delete file to create a new one
+          SD.remove("Migration Test.txt");
+        }
+        // open file
+        myFile = SD.open("Migration Test.txt", FILE_WRITE);
+        myFile.println("Period, Pressure In, Pressure Out");
+      }
+    }else if(c == 'h'){ // generate cough but don't record data
+      Cough = true;
+      record = false;
+      Serial.println("cough");
+    }else if(c == 'a'){ // read number of coughs
+      coughs = reading.toInt();
+      reading = "";
+    }else if(c == 's'){ // read cough duration
+      period = reading.toInt();
+      reading = "";
+    }else if(c == 'd'){ // read rest time
+      rest = reading.toInt();
+      reading = "";
+    }else if(c == 'e'){ // end migration test
+      if(record){
+        // close file
+        myFile.close();
+      }
+      // reset
+      Cough = false;
+      record = false;
+      counter = 0;
+    }else if(c == 'p'){ // pause
+      Cough = !Cough;
+      if(digitalRead(relay) == 1){
+        relayOff();
+      }
+    }else{
+      reading.concat(c);
+    }
   }
+
+  if(Cough == true){
+    if(record){
+      myFile.println("Cough #"+String(counter));
+    }
+    if(counter < coughs){
+      cough();
+      delay(rest);
+    }else{
+      // test ends, reset states
+      Cough = false;
+      record = false;
+      counter = 0;
+    }
+    if(counter == coughs && record == true){
+      // close file
+        myFile.close();
+    }
+  }
+  
+  // sending data
+  if(relayOpen == true){
+      // tank pressure
+      String s = String(pressureTank);
+      char array1[s.length()+1];
+      s.toCharArray(array1, s.length()+1);
+      for(int i = 0; i<s.length()-1; i++){
+        bluetooth.write(array1[i]);
+        delay(15);
+      }
+      bluetooth.write('t');
+      delay(15);
+      // pressure in
+      s = String(pressureIn);
+      char array2[s.length()+1];
+      s.toCharArray(array2, s.length()+1);
+      for(int i = 0; i<s.length(); i++){
+        bluetooth.write(array2[i]);
+        delay(15);
+      }
+      bluetooth.write('i');
+      delay(15);
+      // pressure out
+      s = String(pressureOut);
+      char array3[s.length()+1];
+      s.toCharArray(array3, s.length()+1);
+      for(int i = 0; i<s.length(); i++){
+        bluetooth.write(array3[i]);
+        delay(15);
+      }
+      bluetooth.write('o');
+      delay(15);
+    }
 }
 
-function isNumeric(str) {
-  if (typeof str != "string") return false // we only process strings!  
-  return !isNaN(str) && // use type coercion to parse the _entirety_ of the string (`parseFloat` alone does not do this)...
-         !isNaN(parseFloat(str)) // ...and ensure strings of whitespace fail
+void relayOn() {
+  digitalWrite(relay, HIGH);
+  delay(18); // ignore solenoid ON response time
+}
+
+void relayOff() {
+  digitalWrite(relay, LOW);
+  counter++;
+  // cycle count
+  String s = String(counter);
+  char arr[s.length()+1];
+  s.toCharArray(arr, s.length()+1);
+  for(int i = 0; i<s.length(); i++){
+    bluetooth.write(arr[i]);
+    delay(15);
+  }
+  bluetooth.write('z');
+  delay(15);
+}
+
+void cough() {
+  // Generating a cough
+  // time: 0.4 s => 400 milliseconds
+  // pressure: ~3 psi, exactly 2.84 psi
+  relayOn();
+  unsigned long startTime = millis();
+  while(true){
+    // read pressure in and store
+    int valIn = analogRead(sensorIn);
+    double output = float(valIn)/1023.0;
+    double pressureIn = (output*30/4)-0.5;
+    // read pressure out and store
+    int valOut = analogRead(sensorOut);
+    output = float(valOut)/1023.0;
+    double pressureOut = (output*30/4)-0.5;
+    // read time and store
+    int duration = millis() - startTime;
+    if(myFile && record){ // write to text file on SD card
+      myFile.println(String(duration)+", "+String(pressureIn)+", "+String(pressureOut));
+    }
+    if(duration >= period){
+      relayOff();
+      break;
+    }
+  }
 }

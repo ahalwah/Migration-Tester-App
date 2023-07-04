@@ -19,14 +19,15 @@ int sensorOut = A1;
 // pressure sensor tank
 int sensorTank = A2;
 // ble
-int beginTime = 0;
 boolean Cough = false;
 boolean record = false;
 // ble values in
 String reading = "";
-int coughs;
-int period;
-int rest;
+long coughs;
+long period;
+long rest;
+// cycle counter
+long counter = 0;
 
 SoftwareSerial bluetooth(bluTX_ardRXpin, bluRX_ardTXpin);
 
@@ -78,7 +79,6 @@ void loop() {
       pressureTank = y1+(((x-x1)/(x2-x1))*(y2-y1));
     }
   }
-
   if(bluetooth.available()>0){ // receiving data
     //led indicator for bluetooth connected
     char c = bluetooth.read();
@@ -97,45 +97,63 @@ void loop() {
         Cough = true;
         record = true;
         Serial.println("sd in");
+        if(SD.exists("Migration Test.txt")){
+          // delete file to create a new one
+          SD.remove("Migration Test.txt");
+        }
+        // open file
+        myFile = SD.open("Migration Test.txt", FILE_WRITE);
+        myFile.println("Period, Pressure In, Pressure Out");
       }
     }else if(c == 'h'){ // generate cough but don't record data
       Cough = true;
       record = false;
+      Serial.println("cough");
     }else if(c == 'a'){ // read number of coughs
-      coughs = reading.toInt();
+      coughs = stringToLong(reading);
       reading = "";
     }else if(c == 's'){ // read cough duration
-      period = reading.toInt();
+      period = stringToLong(reading);
       reading = "";
     }else if(c == 'd'){ // read rest time
-      rest = reading.toInt();
+      rest = stringToLong(reading);
       reading = "";
+    }else if(c == 'e'){ // end migration test
+      if(record){
+        // close file
+        myFile.close();
+      }
+      // reset
+      Cough = false;
+      record = false;
+      counter = 0; // reset counter 
+    }else if(c == 'p'){ // pause
+      Cough = !Cough;
+      if(digitalRead(relay) == 1){
+        relayOff();
+      }
     }else{
       reading.concat(c);
     }
   }
 
   if(Cough == true){
-    Cough = false;
+    Serial.println(counter);
     if(record){
-      if(SD.exists("Migration Test.txt")){
-        // delete file to create a new one
-        Sd.remove("Migration Test.txt");
-      }
-      // open file
-      myFile = SD.open("Migration Test.txt", FILE_WRITE);
-      myFile.println("Period, Pressure In, Pressure Out");
+      myFile.println("Cough #"+String(counter));
     }
-    for(int i=1; i<=coughs; i++){
-      if(record){
-        myFile.println("Cough #"+String(i));
-      }
+    if(counter < coughs){
       cough();
       delay(rest);
+    }else{
+      // test ends, reset states
+      Cough = false;
+      record = false;
+      counter = 0;
     }
-    if(record){
+    if(counter == coughs && record == true){
       // close file
-      myFile.close();
+        myFile.close();
     }
   }
   
@@ -172,7 +190,6 @@ void loop() {
       bluetooth.write('o');
       delay(15);
     }
-
 }
 
 void relayOn() {
@@ -182,6 +199,17 @@ void relayOn() {
 
 void relayOff() {
   digitalWrite(relay, LOW);
+  counter++;
+  // cycle count
+  // String s = String(counter);
+  // char arr[s.length()+1];
+  // s.toCharArray(arr, s.length()+1);
+  // for(int i = 0; i<s.length(); i++){
+  //   bluetooth.write(arr[i]);
+  //   delay(15);
+  // }
+  bluetooth.write('z'); // command to increment count
+  delay(15);
 }
 
 void cough() {
@@ -209,5 +237,17 @@ void cough() {
       break;
     }
   }
-  relayOff();
+}
+
+long stringToLong(const String& str) {
+  String cleanStr = "";
+  for (unsigned int i = 0; i < str.length(); ++i) {
+    char c = str.charAt(i);
+    if (isdigit(c)) {
+      cleanStr += c;
+    }
+  }
+
+  long num = cleanStr.toInt();
+  return num;
 }

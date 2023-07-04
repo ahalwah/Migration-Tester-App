@@ -29,6 +29,7 @@ let pressIn = '';
 let pressOut = '';
 let period = '';
 let cycle= '';
+let coughCycle = 0;
 
 // input variables
 let coughsInput;
@@ -131,19 +132,15 @@ async function setup() {
 
 function inputEvent() {
   coughsInput = this.value()
-  console.log(this.value())
 }
 function inputEvent2() {
   durationInput = this.value()
-  console.log(this.value())
 }
 function inputEvent3() {
   restInput = this.value()
-  console.log(this.value())
 }
 
 async function draw() {
-  console.log(width, height)
   background(220)
   fill('black')
   textSize(width*0.04)
@@ -182,7 +179,6 @@ async function draw() {
     let rest = parseInt(restInput)
     let totalTime = (duration+rest)/1000
     let rate = round(60/totalTime, 2)
-    console.log(rate)
     text(rate.toString(), width*0.56, width*0.44)
   }
   
@@ -257,7 +253,10 @@ function handleNotifications(data) {
     if(saveData.checked())
       alert('Can not read SD card!')
   }else if(String.fromCharCode(data) === 'z'){// cough cycle data value
-    cycle = reading;
+    coughCycle++;
+    // cycle = reading;
+    cycle = coughCycle.toString();
+    console.log(coughCycle, cycle)
     reading = ''
   }else{
     let incoming = String.fromCharCode(data);

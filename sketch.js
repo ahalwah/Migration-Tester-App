@@ -36,6 +36,11 @@ let coughsInput;
 let durationInput;
 let restInput;
 
+// boolean
+let testEnded = false; 
+// if end is pressed in gui
+// false if begin is pressed in gui
+
 async function setup() {
     createCanvas(windowWidth, windowWidth*0.47);
     // Create a p5ble class
@@ -90,14 +95,15 @@ async function setup() {
     endBtn.style('border-radius', `${width*0.005}px`);
 
     pauseBtn = createButton("Pause");
-    pauseBtn.style('background-color', 'teal');
+    pauseBtn.style('background-color', 'grey');
     pauseBtn.style('color', 'white');
-    pauseBtn.style('border-color', 'teal');
+    pauseBtn.style('border-color', 'grey');
     pauseBtn.mousePressed(pauseCoughs);
     pauseBtn.position(width*0.545, width*0.34);
     pauseBtn.size(width*0.07, width*0.035);
     pauseBtn.style('font-size', `${width*0.013}px`);
     pauseBtn.style('border-radius', `${width*0.005}px`);
+    pauseBtn.attribute('disabled', ''); // initialize to disabled
 
     inp1 = createInput('');
     inp1.position(width*0.21, width*0.348);
@@ -202,6 +208,7 @@ async function draw() {
   text(pressOut, width*0.56, width*0.29)
   text('psi', width*0.65, width*0.29)
 
+  !pauseState ? pauseBtn.html('Pause') : pauseBtn.html('Continue');
 
   bleIndicator();
 }
@@ -256,7 +263,7 @@ function handleNotifications(data) {
     coughCycle++;
     // cycle = reading;
     cycle = coughCycle.toString();
-    console.log(coughCycle, cycle)
+    // console.log(coughCycle, cycle)
     reading = ''
   }else{
     let incoming = String.fromCharCode(data);
@@ -369,6 +376,14 @@ function windowResized() {
 }
 
 async function beginCoughs() {
+  // reset cough cycle
+  coughCycle = 0;
+  testEnded = false;
+  // enable pause btn
+  pauseBtn.removeAttribute('disabled');
+  pauseBtn.style('background-color', 'teal');
+  // reset pause btn to display pause
+  pauseState = false;
   if(isConnected){
     // check all inputs as strings will be whole numbers
     if(!isNaN(coughsInput) && !isNaN(durationInput) && !isNaN(restInput)){
@@ -401,12 +416,15 @@ async function beginCoughs() {
 
 async function endCoughs() {
   await sendData('e');
+  pauseState = false;
+  testEnded = true;
+  pauseBtn.attribute('disabled', '');
+  pauseBtn.style('background-color', 'grey');
 } 
 
 async function pauseCoughs() {
   if(isConnected){
     pauseState = !pauseState;
-    !pauseState ? pauseBtn.html('Pause') : pauseBtn.html('Continue');
     await sendData('p');
   }
 }

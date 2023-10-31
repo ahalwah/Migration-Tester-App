@@ -5,7 +5,10 @@
 #include <SoftwareSerial.h>
 // https://create.arduino.cc/projecthub/electropeak/sd-card-module-with-arduino-how-to-read-write-data-37f390
 SdExFat SD;
+#define SD_CS_PIN SS
 ExFile myFile;
+// #include <SD.h>
+// File myFile;
 
 //UART TO HM10 Module
 const int bluRX_ardTXpin = 6;
@@ -28,6 +31,7 @@ long period;
 long rest;
 // cycle counter
 long counter = 0;
+String fileName = "";
 
 SoftwareSerial bluetooth(bluTX_ardRXpin, bluRX_ardTXpin);
 
@@ -90,19 +94,21 @@ void loop() {
       relayOpen = false;
     }else if(c == 'c'){ // generate cough and record data
       // check if SD card is inserted
-      if (!SD.begin(10)) {
+      if (!SD.begin(SD_CS_PIN)) {
         bluetooth.write('y'); // request user to insert sd card first
         Serial.println("sd not in");
       }else{
         Cough = true;
         record = true;
         Serial.println("sd in");
-        if(SD.exists("Migration Test.txt")){
+        fileName = "data-" + String(counter) +".txt";
+        if(SD.exists(fileName)){
           // delete file to create a new one
-          SD.remove("Migration Test.txt");
+          Serial.println("Deleting existing file.");
+          SD.remove(fileName);
         }
-        // open file
-        myFile = SD.open("Migration Test.txt", FILE_WRITE);
+        // open file initially
+        myFile = SD.open(fileName, FILE_WRITE);
         myFile.println("Period, Pressure In, Pressure Out");
       }
     }else if(c == 'h'){ // generate cough but don't record data
@@ -121,6 +127,7 @@ void loop() {
     }else if(c == 'e'){ // end migration test
       if(record){
         // close file
+        Serial.println("File closed.");
         myFile.close();
       }
       // reset
@@ -136,11 +143,25 @@ void loop() {
       reading.concat(c);
     }
   }
-
+ 
   if(Cough == true){
-    Serial.println(counter);
+    // Serial.println(counter);
     if(record){
-      myFile.println("Cough #"+String(counter));
+      if(counter % 50000 == 0){
+        fileName = "data-" + String(counter) +".txt";
+        if(SD.exists(fileName)){
+          // delete file to create a new one
+          Serial.println("Deleting existing file.");
+          SD.remove(fileName);
+        }
+        // create new file
+        myFile = SD.open(fileName, FILE_WRITE);
+        myFile.println("Period, Pressure In, Pressure Out");
+      }else if(counter % 10000 == 0 && counter != 0){ // save file after every 10,000 coughs pass by
+        myFile.close();
+        myFile = SD.open(fileName, FILE_WRITE);
+      }
+    myFile.println("Cough #"+String(counter+1));
     }
     if(counter < coughs){
       cough();
@@ -152,44 +173,44 @@ void loop() {
       counter = 0;
     }
     if(counter == coughs && record == true){
-      // close file
-        myFile.close();
+      // coughs completed close file
+      myFile.close();
     }
   }
   
   // sending data
   if(relayOpen == true){
-      // tank pressure
-      String s = String(pressureTank);
-      char array1[s.length()+1];
-      s.toCharArray(array1, s.length()+1);
-      for(int i = 0; i<s.length()-1; i++){
-        bluetooth.write(array1[i]);
-        delay(15);
-      }
-      bluetooth.write('t');
-      delay(15);
-      // pressure in
-      s = String(pressureIn);
-      char array2[s.length()+1];
-      s.toCharArray(array2, s.length()+1);
-      for(int i = 0; i<s.length(); i++){
-        bluetooth.write(array2[i]);
-        delay(15);
-      }
-      bluetooth.write('i');
-      delay(15);
-      // pressure out
-      s = String(pressureOut);
-      char array3[s.length()+1];
-      s.toCharArray(array3, s.length()+1);
-      for(int i = 0; i<s.length(); i++){
-        bluetooth.write(array3[i]);
-        delay(15);
-      }
-      bluetooth.write('o');
+    // tank pressure
+    String s = String(pressureTank);
+    char array1[s.length()+1];
+    s.toCharArray(array1, s.length()+1);
+    for(int i = 0; i<s.length()-1; i++){
+      bluetooth.write(array1[i]);
       delay(15);
     }
+    bluetooth.write('t');
+    delay(15);
+    // pressure in
+    s = String(pressureIn);
+    char array2[s.length()+1];
+    s.toCharArray(array2, s.length()+1);
+    for(int i = 0; i<s.length(); i++){
+      bluetooth.write(array2[i]);
+      delay(15);
+    }
+    bluetooth.write('i');
+    delay(15);
+    // pressure out
+    s = String(pressureOut);
+    char array3[s.length()+1];
+    s.toCharArray(array3, s.length()+1);
+    for(int i = 0; i<s.length(); i++){
+      bluetooth.write(array3[i]);
+      delay(15);
+    }
+    bluetooth.write('o');
+    delay(15);
+  }
 }
 
 void relayOn() {
@@ -200,14 +221,6 @@ void relayOn() {
 void relayOff() {
   digitalWrite(relay, LOW);
   counter++;
-  // cycle count
-  // String s = String(counter);
-  // char arr[s.length()+1];
-  // s.toCharArray(arr, s.length()+1);
-  // for(int i = 0; i<s.length(); i++){
-  //   bluetooth.write(arr[i]);
-  //   delay(15);
-  // }
   bluetooth.write('z'); // command to increment count
   delay(15);
 }
